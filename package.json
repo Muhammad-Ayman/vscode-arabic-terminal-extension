@@ -4,6 +4,7 @@
     "description": "Custom terminal WebView that runs PowerShell and applies Arabic reshaping + bidi to output.",
     "version": "0.0.1",
     "publisher": "IMuhammadAyman",
+    "icon": "images/icon.png",
     "repository": {
     "type": "git",
     "url": "https://github.com/Muhammad-Ayman/vscode-arabic-terminal-extension"
