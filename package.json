@@ -1,0 +1,36 @@
+{
+    "name": "vscode-arabic-terminal",
+    "displayName": "Arabic Terminal (PowerShell)",
+    "description": "Custom terminal WebView that runs PowerShell and applies Arabic reshaping + bidi to output.",
+    "version": "0.0.1",
+    "publisher": "yourname",
+    "engines": {
+    "vscode": "^1.80.0"
+    },
+    "categories": ["Other"],
+    "activationEvents": [
+    "onCommand:arabicTerminal.open"
+    ],
+    "main": "./out/extension.js",
+    "contributes": {
+    "commands": [
+    {
+    "command": "arabicTerminal.open",
+    "title": "Open Arabic PowerShell Terminal"
+    }
+    ]
+    },
+    "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "tsc -p ./",
+    "watch": "tsc -w -p ./",
+    "pretest": "npm run build",
+    "test": "node ./out/test/runTest.js"
+    },
+    "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.80.0",
+    "vscode-test": "^1.6.1"
+    }
+    }

@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'none'; img-src __CSP_SOURCE__ data:; script-src __CSP_SOURCE__ 'unsafe-inline'; style-src __CSP_SOURCE__ 'unsafe-inline'; font-src __CSP_SOURCE__; connect-src __CSP_SOURCE__;"
+  />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arabic PowerShell</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: var(--vscode-terminal-background, #0c0c0c);
+      color: var(--vscode-terminal-foreground, #e5e5e5);
+      font-family: var(--vscode-editor-font-family, Consolas, 'Courier New', monospace);
+      font-size: var(--vscode-editor-font-size, 13px);
+      line-height: 1.4;
+      overflow: hidden;
+    }
+
+    #terminal {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      gap: 0;
+    }
+
+    #output {
+      flex: 1;
+      padding: 10px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      direction: rtl;
+      unicode-bidi: plaintext;
+    }
+
+    .line {
+      white-space: pre-wrap;
+    }
+
+    .stderr {
+      color: var(--vscode-terminal-ansiRed, #f14c4c);
+    }
+
+    .stdin-echo {
+      color: var(--vscode-terminal-ansiBrightBlack, #808080);
+    }
+
+    #promptBar {
+      border-top: 1px solid var(--vscode-panel-border, rgba(255, 255, 255, 0.08));
+      padding: 8px 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--vscode-terminal-background, #0c0c0c);
+    }
+
+    #promptLabel {
+      color: var(--vscode-terminal-ansiBrightBlack, #808080);
+      user-select: none;
+    }
+
+    #promptText {
+      flex: 1;
+      min-height: 1.4em;
+      outline: none;
+      cursor: text;
+      white-space: pre-wrap;
+      word-break: break-word;
+      direction: rtl;
+      unicode-bidi: plaintext;
+    }
+
+    #promptText:focus-visible {
+      outline: none;
+    }
+
+    .caret {
+      display: inline-block;
+      width: 1px;
+      background: var(--vscode-editorCursor-foreground, #ffffff);
+      height: 1.2em;
+      vertical-align: text-bottom;
+      animation: blink 1s step-start infinite;
+      margin-inline-start: 1px;
+      margin-inline-end: 1px;
+    }
+
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+
+    #hiddenInput {
+      position: absolute;
+      left: -9999px;
+      opacity: 0;
+      width: 1px;
+      height: 1px;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="terminal">
+    <div id="output" aria-live="polite"></div>
+    <div id="promptBar">
+      <div id="promptLabel">PS&gt;</div>
+      <div id="promptText" role="textbox" aria-label="Arabic terminal input" tabindex="0"></div>
+    </div>
+  </div>
+  <textarea id="hiddenInput" aria-hidden="true" spellcheck="false"></textarea>
+
+  <script src="__ARABIC_RESHAPER_URI__"></script>
+  <script src="__BIDI_URI__"></script>
+  <script src="__SCRIPT_URI__"></script>
+</body>
+</html>
