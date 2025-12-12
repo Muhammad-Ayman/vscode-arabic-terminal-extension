@@ -16,7 +16,8 @@
         "Other"
     ],
     "activationEvents": [
-        "onCommand:arabicTerminal.open"
+        "onCommand:arabicTerminal.open",
+        "onView:arabicTerminal.view"
     ],
     "main": "./out/extension.js",
     "contributes": {
@@ -26,6 +27,24 @@
                 "title": "Open Arabic PowerShell Terminal"
             }
         ],
+        "viewsContainers": {
+            "panel": [
+                {
+                    "id": "arabicTerminalPanel",
+                    "title": "Arabic Terminal",
+                    "icon": "images/icon.png"
+                }
+            ]
+        },
+        "views": {
+            "arabicTerminalPanel": [
+                {
+                    "id": "arabicTerminal.view",
+                    "name": "Arabic Terminal",
+                    "type": "webview"
+                }
+            ]
+        },
         "keybindings": [
             {
                 "command": "arabicTerminal.open",

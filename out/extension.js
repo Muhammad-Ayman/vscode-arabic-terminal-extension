@@ -40,77 +40,118 @@ const child_process_1 = require("child_process");
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
 const WEBVIEW_ROOT = ['src', 'webview'];
+const VIEW_ID = 'arabicTerminal.view';
+const PANEL_ID = 'arabicTerminalPanel';
 function activate(context) {
-    const disposable = vscode.commands.registerCommand('arabicTerminal.open', () => {
-        const panel = vscode.window.createWebviewPanel('arabicTerminal', 'Arabic PowerShell', vscode.ViewColumn.One, {
+    const provider = new ArabicTerminalViewProvider(context);
+    context.subscriptions.push(vscode.window.registerWebviewViewProvider(VIEW_ID, provider, {
+        webviewOptions: { retainContextWhenHidden: true },
+    }));
+    const openCmd = vscode.commands.registerCommand('arabicTerminal.open', async () => {
+        // Focus the custom panel tab, then the view itself
+        await vscode.commands.executeCommand(`workbench.view.panel.${PANEL_ID}`).then(undefined, () => { });
+        await vscode.commands.executeCommand('arabicTerminal.view.focus').then(undefined, () => { });
+    });
+    context.subscriptions.push(openCmd);
+}
+function deactivate() { }
+class ArabicTerminalViewProvider {
+    constructor(context) {
+        this.context = context;
+        this.currentCwd = process.cwd();
+    }
+    resolveWebviewView(webviewView) {
+        this.view = webviewView;
+        const { webview } = webviewView;
+        webview.options = {
             enableScripts: true,
-            retainContextWhenHidden: true,
-            localResourceRoots: [
-                vscode.Uri.file(path.join(context.extensionPath, ...WEBVIEW_ROOT)),
-            ],
-        });
-        panel.webview.html = getWebviewContent(context, panel);
-        const cwd = vscode.window.activeTextEditor?.document?.uri?.scheme === 'file'
-            ? path.dirname(vscode.window.activeTextEditor.document.uri.fsPath)
-            : vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-        let currentCwd = cwd || process.cwd();
-        const shell = createShell(currentCwd);
-        if (!shell) {
+            localResourceRoots: [vscode.Uri.file(path.join(this.context.extensionPath, ...WEBVIEW_ROOT))],
+        };
+        webview.html = this.getWebviewContent(webview);
+        this.currentCwd = this.detectInitialCwd();
+        webview.postMessage({ type: 'cwd', path: this.currentCwd });
+        this.shell = createShell(this.currentCwd);
+        if (!this.shell) {
             vscode.window.showErrorMessage('Failed to start PowerShell session');
             return;
         }
-        panel.webview.postMessage({ type: 'cwd', path: currentCwd });
-        shell.stdout.on('data', (data) => {
-            panel.webview.postMessage({ type: 'stdout', text: data.toString('utf8') });
+        this.shell.stdout.on('data', (data) => {
+            this.view?.webview.postMessage({ type: 'stdout', text: data.toString('utf8') });
         });
-        shell.stderr.on('data', (data) => {
-            panel.webview.postMessage({ type: 'stderr', text: data.toString('utf8') });
+        this.shell.stderr.on('data', (data) => {
+            this.view?.webview.postMessage({ type: 'stderr', text: data.toString('utf8') });
         });
-        shell.on('exit', (code) => {
-            panel.webview.postMessage({ type: 'exit', code });
+        this.shell.on('exit', (code) => {
+            this.view?.webview.postMessage({ type: 'exit', code });
         });
-        panel.webview.onDidReceiveMessage((msg) => {
-            if (!shell.killed) {
-                if (msg.type === 'input') {
-                    const input = String(msg.text ?? '');
-                    const trimmed = input.trim();
-                    const cdMatch = /^cd\s+(.+)$/i.exec(trimmed);
-                    const slMatch = /^set-location\s+(.+)$/i.exec(trimmed);
-                    const targetDir = cdMatch?.[1] ?? slMatch?.[1];
-                    if (targetDir) {
-                        const resolved = resolvePath(targetDir, currentCwd);
-                        if (resolved) {
-                            currentCwd = resolved;
-                            panel.webview.postMessage({ type: 'cwd', path: currentCwd });
-                        }
-                    }
-                    shell.stdin.write(input.endsWith('\n') ? input : `${input}\n`);
-                }
-                else if (msg.type === 'complete') {
-                    const prefix = String(msg.prefix ?? '');
-                    const completions = getPathCompletions(prefix, currentCwd);
-                    panel.webview.postMessage({ type: 'completionItems', items: completions });
-                }
-                else if (msg.type === 'interrupt') {
-                    try {
-                        shell.stdin.write('\x03'); // Ctrl+C
-                    }
-                    catch {
-                        shell.kill();
-                    }
+        webview.onDidReceiveMessage((msg) => this.handleMessage(msg));
+        webviewView.onDidDispose(() => this.disposeShell());
+    }
+    handleMessage(msg) {
+        if (!this.shell || this.shell.killed)
+            return;
+        if (msg.type === 'input') {
+            const input = String(msg.text ?? '');
+            const trimmed = input.trim();
+            const cdMatch = /^cd\s+(.+)$/i.exec(trimmed);
+            const slMatch = /^set-location\s+(.+)$/i.exec(trimmed);
+            const targetDir = cdMatch?.[1] ?? slMatch?.[1];
+            if (targetDir) {
+                const resolved = resolvePath(targetDir, this.currentCwd);
+                if (resolved) {
+                    this.currentCwd = resolved;
+                    this.view?.webview.postMessage({ type: 'cwd', path: this.currentCwd });
                 }
             }
-        }, undefined, context.subscriptions);
-        panel.onDidDispose(() => {
+            this.shell.stdin.write(input.endsWith('\n') ? input : `${input}\n`);
+        }
+        else if (msg.type === 'complete') {
+            const prefix = String(msg.prefix ?? '');
+            const completions = getPathCompletions(prefix, this.currentCwd);
+            this.view?.webview.postMessage({ type: 'completionItems', items: completions });
+        }
+        else if (msg.type === 'interrupt') {
             try {
-                shell.kill();
+                this.shell.stdin.write('\x03');
+            }
+            catch {
+                this.shell.kill();
+            }
+        }
+    }
+    disposeShell() {
+        if (this.shell && !this.shell.killed) {
+            try {
+                this.shell.kill();
             }
             catch {
                 // ignore
             }
-        }, null, context.subscriptions);
-    });
-    context.subscriptions.push(disposable);
+        }
+    }
+    detectInitialCwd() {
+        const editor = vscode.window.activeTextEditor;
+        if (editor?.document?.uri?.scheme === 'file') {
+            return path.dirname(editor.document.uri.fsPath);
+        }
+        const firstWs = vscode.workspace.workspaceFolders?.[0];
+        if (firstWs?.uri?.fsPath)
+            return firstWs.uri.fsPath;
+        return process.cwd();
+    }
+    getWebviewContent(webview) {
+        const webviewRoot = path.join(this.context.extensionPath, ...WEBVIEW_ROOT);
+        const scriptUri = webview.asWebviewUri(vscode.Uri.file(path.join(webviewRoot, 'renderer.js')));
+        const arabicReshaperUri = webview.asWebviewUri(vscode.Uri.file(path.join(webviewRoot, 'deps', 'arabic-reshaper.min.js')));
+        const bidiUri = webview.asWebviewUri(vscode.Uri.file(path.join(webviewRoot, 'deps', 'bidi.min.js')));
+        const htmlPath = path.join(webviewRoot, 'index.html');
+        const rawHtml = fs.readFileSync(htmlPath, 'utf8');
+        return rawHtml
+            .replace(/__CSP_SOURCE__/g, webview.cspSource)
+            .replace(/__SCRIPT_URI__/g, String(scriptUri))
+            .replace(/__ARABIC_RESHAPER_URI__/g, String(arabicReshaperUri))
+            .replace(/__BIDI_URI__/g, String(bidiUri));
+    }
 }
 function createShell(cwd) {
     const candidates = process.platform === 'win32'
@@ -124,7 +165,7 @@ function createShell(cwd) {
             continue;
         }
     }
-    return null;
+    return undefined;
 }
 function resolvePath(target, cwd) {
     try {
@@ -160,18 +201,3 @@ function getPathCompletions(prefix, cwd) {
         return [];
     }
 }
-function getWebviewContent(context, panel) {
-    const webview = panel.webview;
-    const webviewRoot = path.join(context.extensionPath, ...WEBVIEW_ROOT);
-    const scriptUri = webview.asWebviewUri(vscode.Uri.file(path.join(webviewRoot, 'renderer.js')));
-    const arabicReshaperUri = webview.asWebviewUri(vscode.Uri.file(path.join(webviewRoot, 'deps', 'arabic-reshaper.min.js')));
-    const bidiUri = webview.asWebviewUri(vscode.Uri.file(path.join(webviewRoot, 'deps', 'bidi.min.js')));
-    const htmlPath = path.join(webviewRoot, 'index.html');
-    const rawHtml = fs.readFileSync(htmlPath, 'utf8');
-    return rawHtml
-        .replace(/__CSP_SOURCE__/g, webview.cspSource)
-        .replace(/__SCRIPT_URI__/g, String(scriptUri))
-        .replace(/__ARABIC_RESHAPER_URI__/g, String(arabicReshaperUri))
-        .replace(/__BIDI_URI__/g, String(bidiUri));
-}
-function deactivate() { }
