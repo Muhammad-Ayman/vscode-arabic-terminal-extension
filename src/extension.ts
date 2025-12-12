@@ -33,6 +33,8 @@ export function activate(context: vscode.ExtensionContext) {
       return;
     }
 
+    panel.webview.postMessage({ type: 'cwd', path: cwd });
+
     shell.stdout.on('data', (data: Buffer) => {
       panel.webview.postMessage({ type: 'stdout', text: data.toString('utf8') });
     });

@@ -16,6 +16,8 @@
   let processExited = false;
   let ansiStateStdout = defaultAnsiState();
   let ansiStateStderr = defaultAnsiState();
+  let currentCwd = '';
+  let initialCwdShown = false;
 
   promptLabelEl.textContent = PROMPT_PREFIX.trim();
 
@@ -189,6 +191,23 @@
     scrollToBottom();
   }
 
+  function appendCwdLine(force = false) {
+    if (!currentCwd) return;
+    if (!initialCwdShown || force) {
+      appendPlainLine(currentCwd);
+      initialCwdShown = true;
+    }
+  }
+
+  function clearOutput() {
+    outputEl.innerHTML = '';
+    pendingStdout = '';
+    pendingStderr = '';
+    ansiStateStdout = defaultAnsiState();
+    ansiStateStderr = defaultAnsiState();
+    scrollToBottom();
+  }
+
   function scrollToBottom() {
     outputEl.scrollTop = outputEl.scrollHeight;
   }
@@ -240,6 +259,14 @@
   function executeCommand() {
     if (processExited) return;
     const cmd = buffer;
+    const normalized = cmd.trim().toLowerCase();
+    if (normalized === 'clear' || normalized === 'cls') {
+      clearOutput();
+      appendCwdLine(true);
+      vscode.postMessage({ type: 'input', text: cmd });
+      clearPrompt();
+      return;
+    }
     echoCommand(cmd);
     vscode.postMessage({ type: 'input', text: cmd });
     clearPrompt();
@@ -255,6 +282,10 @@
   // ---------- Output stream handling ----------
   function handleStreamChunk(kind, text) {
     const normalized = text.replace(/\r\n/g, '\n');
+    if (/\u001b\[\d*J/.test(normalized)) {
+      // Clear screen escape sequences (e.g., ESC[2J)
+      clearOutput();
+    }
     if (kind === 'stderr') {
       pendingStderr = consumeLines(normalized, pendingStderr, 'stderr');
     } else {
@@ -340,6 +371,9 @@
       flushPending();
       appendPlainLine(`[process exited with code ${msg.code}]`);
       clearPrompt();
+    } else if (msg.type === 'cwd') {
+      currentCwd = msg.path || '';
+      appendCwdLine(false);
     }
   });
 
