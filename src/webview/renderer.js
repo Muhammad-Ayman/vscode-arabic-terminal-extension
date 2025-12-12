@@ -79,7 +79,7 @@
   }
 
   function parseAnsi(text, state) {
-    const ansiRegex = /\x1b\[(\d+(?:;\d+)*)m/g;
+    const ansiRegex = /\x1b\[([0-9;]*)m/g; // allow empty params (e.g., ESC[m)
     const spans = [];
     let lastIndex = 0;
     let styleState = { ...state };
@@ -89,7 +89,8 @@
       if (index > lastIndex) {
         spans.push({ text: text.slice(lastIndex, index), style: toStyle(styleState) });
       }
-      const codes = match[1].split(';').map(Number);
+      const raw = match[1];
+      const codes = raw === '' ? [0] : raw.split(';').map((n) => Number(n));
       styleState = applyCodes(styleState, codes);
       lastIndex = index + match[0].length;
     }
@@ -115,7 +116,8 @@
       104: '#3b8eea', 105: '#d670d6', 106: '#29b8db', 107: '#e5e5e5',
     };
 
-    codes.forEach((code) => {
+    for (let i = 0; i < codes.length; i++) {
+      const code = codes[i];
       if (code === 0) {
         next.fg = null;
         next.bg = null;
@@ -128,22 +130,54 @@
         next.italic = true;
       } else if (code === 4) {
         next.underline = true;
+      } else if (code === 7) {
+        const tmp = next.fg;
+        next.fg = next.bg;
+        next.bg = tmp;
       } else if (code === 22) {
         next.bold = false;
       } else if (code === 23) {
         next.italic = false;
       } else if (code === 24) {
         next.underline = false;
+      } else if (code === 27) {
+        const tmp = next.fg;
+        next.fg = next.bg;
+        next.bg = tmp;
       } else if (code === 39) {
         next.fg = null;
       } else if (code === 49) {
         next.bg = null;
+      } else if (code === 38 || code === 48) {
+        const isFg = code === 38;
+        const mode = codes[i + 1];
+        if (mode === 5 && typeof codes[i + 2] === 'number') {
+          const idx = codes[i + 2];
+          const color = xterm256Color(idx);
+          if (color) {
+            if (isFg) next.fg = color;
+            else next.bg = color;
+          }
+          i += 2;
+        } else if (mode === 2 && typeof codes[i + 2] === 'number') {
+          const r = codes[i + 2];
+          const g = codes[i + 3];
+          const b = codes[i + 4];
+          if ([r, g, b].every((v) => typeof v === 'number' && !Number.isNaN(v))) {
+            const color = `#${clampByte(r).toString(16).padStart(2, '0')}${clampByte(g)
+              .toString(16)
+              .padStart(2, '0')}${clampByte(b).toString(16).padStart(2, '0')}`;
+            if (isFg) next.fg = color;
+            else next.bg = color;
+          }
+          i += 4;
+        }
       } else if (fgMap[code]) {
         next.fg = fgMap[code];
       } else if (bgMap[code]) {
         next.bg = bgMap[code];
       }
-    });
+    }
 
     return next;
   }
@@ -441,5 +475,34 @@
       if (!prefix) break;
     }
     return prefix;
+  }
+
+  function clampByte(n) {
+    if (Number.isNaN(n)) return 0;
+    return Math.min(255, Math.max(0, n));
+  }
+
+  function xterm256Color(idx) {
+    if (idx == null || Number.isNaN(idx)) return null;
+    const n = Math.max(0, Math.min(255, idx));
+    if (n < 16) {
+      const table = [
+        '#000000', '#cd0000', '#00cd00', '#cdcd00', '#0000ee', '#cd00cd', '#00cdcd', '#e5e5e5',
+        '#7f7f7f', '#ff0000', '#00ff00', '#ffff00', '#5c5cff', '#ff00ff', '#00ffff', '#ffffff',
+      ];
+      return table[n];
+    }
+    if (n >= 16 && n <= 231) {
+      const v = n - 16;
+      const r = Math.floor(v / 36) % 6;
+      const g = Math.floor(v / 6) % 6;
+      const b = v % 6;
+      const comp = [r, g, b].map((c) => (c === 0 ? 0 : c * 40 + 55));
+      return `#${comp.map((c) => clampByte(c).toString(16).padStart(2, '0')).join('')}`;
+    }
+    // grayscale 232-255
+    const level = 8 + (n - 232) * 10;
+    const hex = clampByte(level).toString(16).padStart(2, '0');
+    return `#${hex}${hex}${hex}`;
   }
 })();
