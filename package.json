@@ -25,7 +25,15 @@
                 "command": "arabicTerminal.open",
                 "title": "Open Arabic PowerShell Terminal"
             }
-        ]
+    ],
+    "keybindings": [
+    {
+    "command": "arabicTerminal.open",
+    "key": "ctrl+alt+t",
+    "mac": "cmd+alt+t",
+    "when": "editorTextFocus"
+    }
+    ]
     },
     "scripts": {
         "vscode:prepublish": "npm run build",

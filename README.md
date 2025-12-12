@@ -14,6 +14,7 @@ A VS Code terminal panel that runs PowerShell and displays Arabic text correctly
 3. Type commands in the prompt at the bottom and press Enter.
    - Ctrl+C sends an interrupt.
    - Arrow keys move the cursor in the prompt.
+   - Hotkey: Ctrl+Alt+T (Cmd+Alt+T on macOS) opens the terminal directly.
 
 ## Install the extension
 - From a VSIX file:
