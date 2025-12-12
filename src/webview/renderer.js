@@ -28,49 +28,9 @@
   focusPrompt();
   renderPrompt();
 
-  // ---------- Arabic shaping + bidi helpers ----------
-  function shapeArabic(text) {
-    try {
-      if (window.arabicReshaper?.reshape) {
-        return window.arabicReshaper.reshape(text);
-      }
-      if (window.arabicReshaper?.ArabicReshaper) {
-        const reshaper = new window.arabicReshaper.ArabicReshaper();
-        return reshaper.reshape(text);
-      }
-    } catch {
-      // ignore
-    }
-    return text;
-  }
-
-  function applyBidi(text) {
-    try {
-      const bidiLib = window.bidi;
-      if (!bidiLib) return text;
-      if (typeof bidiLib.reorderParagraphs === 'function') {
-        const res = bidiLib.reorderParagraphs(text);
-        if (Array.isArray(res) && res[0]?.str) return res[0].str;
-      }
-      if (typeof bidiLib.reorderLogical === 'function') {
-        return bidiLib.reorderLogical(text);
-      }
-      if (typeof bidiLib.reorderVisual === 'function') {
-        return bidiLib.reorderVisual(text);
-      }
-      if (bidiLib.Bidi) {
-        const bidi = new bidiLib.Bidi();
-        bidi.setParagraph(text);
-        return bidi.getText();
-      }
-    } catch {
-      // ignore
-    }
-    return text;
-  }
-
+  // ---------- Arabic shaping + bidi helpers (no-op now that deps are removed) ----------
   function shapeAndBidi(text) {
-    return applyBidi(shapeArabic(text));
+    return text;
   }
 
   // ---------- ANSI to HTML ----------

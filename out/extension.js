@@ -142,15 +142,11 @@ class ArabicTerminalViewProvider {
     getWebviewContent(webview) {
         const webviewRoot = path.join(this.context.extensionPath, ...WEBVIEW_ROOT);
         const scriptUri = webview.asWebviewUri(vscode.Uri.file(path.join(webviewRoot, 'renderer.js')));
-        const arabicReshaperUri = webview.asWebviewUri(vscode.Uri.file(path.join(webviewRoot, 'deps', 'arabic-reshaper.min.js')));
-        const bidiUri = webview.asWebviewUri(vscode.Uri.file(path.join(webviewRoot, 'deps', 'bidi.min.js')));
         const htmlPath = path.join(webviewRoot, 'index.html');
         const rawHtml = fs.readFileSync(htmlPath, 'utf8');
         return rawHtml
             .replace(/__CSP_SOURCE__/g, webview.cspSource)
-            .replace(/__SCRIPT_URI__/g, String(scriptUri))
-            .replace(/__ARABIC_RESHAPER_URI__/g, String(arabicReshaperUri))
-            .replace(/__BIDI_URI__/g, String(bidiUri));
+            .replace(/__SCRIPT_URI__/g, String(scriptUri));
     }
 }
 function createShell(cwd) {
