@@ -91,11 +91,7 @@ class ArabicTerminalViewProvider implements vscode.WebviewViewProvider {
       const completions = getPathCompletions(prefix, this.currentCwd);
       this.view?.webview.postMessage({ type: 'completionItems', items: completions });
     } else if (msg.type === 'interrupt') {
-      try {
-        this.shell.stdin.write('\x03');
-      } catch {
-        this.shell.kill();
-      }
+      this.sendInterrupt();
     }
   }
 
@@ -129,6 +125,21 @@ class ArabicTerminalViewProvider implements vscode.WebviewViewProvider {
     return rawHtml
       .replace(/__CSP_SOURCE__/g, webview.cspSource)
       .replace(/__SCRIPT_URI__/g, String(scriptUri));
+  }
+
+  private sendInterrupt() {
+    if (!this.shell || this.shell.killed) return;
+    try {
+      this.shell.stdin.write('\x03');
+    } catch {
+      // ignore
+    }
+    try {
+      // On Windows this maps to CTRL_C_EVENT for attached consoles; still best-effort.
+      this.shell.kill('SIGINT');
+    } catch {
+      // ignore
+    }
   }
 }
 
