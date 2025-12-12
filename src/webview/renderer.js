@@ -18,6 +18,7 @@
   let ansiStateStderr = defaultAnsiState();
   let currentCwd = '';
   let initialCwdShown = false;
+  let pendingCompletion = null;
 
   promptLabelEl.textContent = PROMPT_PREFIX.trim();
 
@@ -246,6 +247,22 @@
     renderPrompt();
   }
 
+  function replaceWordAtCursor(replacement) {
+    const { start, end } = getWordBounds();
+    buffer = buffer.slice(0, start) + replacement + buffer.slice(end);
+    cursor = start + replacement.length;
+    renderPrompt();
+  }
+
+  function getWordBounds() {
+    const left = buffer.slice(0, cursor);
+    const right = buffer.slice(cursor);
+    const start = left.lastIndexOf(' ') + 1;
+    const nextSpace = right.indexOf(' ');
+    const end = nextSpace === -1 ? buffer.length : cursor + nextSpace;
+    return { start, end };
+  }
+
   function clearPrompt() {
     buffer = '';
     cursor = 0;
@@ -339,6 +356,11 @@
       interruptProcess();
       return;
     }
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      requestCompletion();
+      return;
+    }
   });
 
   hiddenInput.addEventListener('input', () => {
@@ -374,9 +396,50 @@
     } else if (msg.type === 'cwd') {
       currentCwd = msg.path || '';
       appendCwdLine(false);
+    } else if (msg.type === 'completionItems') {
+      applyCompletionItems(msg.items ?? []);
     }
   });
 
   // initial focus when the webview loads
   window.addEventListener('focus', focusPrompt);
+
+  // ---------- Completion handling ----------
+  function requestCompletion() {
+    const { start, end } = getWordBounds();
+    const currentWord = buffer.slice(start, end);
+    pendingCompletion = { start, end };
+    vscode.postMessage({ type: 'complete', prefix: currentWord });
+  }
+
+  function applyCompletionItems(items) {
+    if (!pendingCompletion) return;
+    if (!items.length) {
+      pendingCompletion = null;
+      return;
+    }
+    if (items.length === 1) {
+      replaceWordAtCursor(items[0]);
+    } else {
+      const common = longestCommonPrefix(items);
+      if (common && common.length > 0) {
+        replaceWordAtCursor(common);
+      }
+      appendPlainLine(items.join('    '));
+    }
+    pendingCompletion = null;
+  }
+
+  function longestCommonPrefix(strings) {
+    if (!strings.length) return '';
+    let prefix = strings[0];
+    for (const s of strings.slice(1)) {
+      while (!s.toLowerCase().startsWith(prefix.toLowerCase())) {
+        prefix = prefix.slice(0, -1);
+        if (!prefix) break;
+      }
+      if (!prefix) break;
+    }
+    return prefix;
+  }
 })();

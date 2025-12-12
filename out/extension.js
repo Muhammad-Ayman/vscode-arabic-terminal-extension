@@ -53,11 +53,13 @@ function activate(context) {
         const cwd = vscode.window.activeTextEditor?.document?.uri?.scheme === 'file'
             ? path.dirname(vscode.window.activeTextEditor.document.uri.fsPath)
             : vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-        const shell = createShell(cwd);
+        let currentCwd = cwd || process.cwd();
+        const shell = createShell(currentCwd);
         if (!shell) {
             vscode.window.showErrorMessage('Failed to start PowerShell session');
             return;
         }
+        panel.webview.postMessage({ type: 'cwd', path: currentCwd });
         shell.stdout.on('data', (data) => {
             panel.webview.postMessage({ type: 'stdout', text: data.toString('utf8') });
         });
@@ -71,7 +73,23 @@ function activate(context) {
             if (!shell.killed) {
                 if (msg.type === 'input') {
                     const input = String(msg.text ?? '');
+                    const trimmed = input.trim();
+                    const cdMatch = /^cd\s+(.+)$/i.exec(trimmed);
+                    const slMatch = /^set-location\s+(.+)$/i.exec(trimmed);
+                    const targetDir = cdMatch?.[1] ?? slMatch?.[1];
+                    if (targetDir) {
+                        const resolved = resolvePath(targetDir, currentCwd);
+                        if (resolved) {
+                            currentCwd = resolved;
+                            panel.webview.postMessage({ type: 'cwd', path: currentCwd });
+                        }
+                    }
                     shell.stdin.write(input.endsWith('\n') ? input : `${input}\n`);
+                }
+                else if (msg.type === 'complete') {
+                    const prefix = String(msg.prefix ?? '');
+                    const completions = getPathCompletions(prefix, currentCwd);
+                    panel.webview.postMessage({ type: 'completionItems', items: completions });
                 }
                 else if (msg.type === 'interrupt') {
                     try {
@@ -107,6 +125,40 @@ function createShell(cwd) {
         }
     }
     return null;
+}
+function resolvePath(target, cwd) {
+    try {
+        const base = cwd || process.cwd();
+        const resolved = path.resolve(base, target.replace(/^['"]|['"]$/g, ''));
+        const stat = fs.statSync(resolved);
+        if (stat.isDirectory())
+            return resolved;
+    }
+    catch {
+        // ignore
+    }
+    return null;
+}
+function getPathCompletions(prefix, cwd) {
+    const sep = path.sep;
+    const baseCwd = cwd || process.cwd();
+    const cleaned = prefix.replace(/^['"]|['"]$/g, '');
+    const hasSep = cleaned.includes(sep);
+    const dirPart = hasSep ? cleaned.slice(0, cleaned.lastIndexOf(sep) + 1) : '';
+    const basePart = hasSep ? cleaned.slice(cleaned.lastIndexOf(sep) + 1) : cleaned;
+    const dirPath = path.resolve(baseCwd, dirPart || '.');
+    try {
+        const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+        return entries
+            .filter((e) => e.name.toLowerCase().startsWith(basePart.toLowerCase()))
+            .map((e) => {
+            const suffix = e.isDirectory() ? sep : '';
+            return `${dirPart}${e.name}${suffix}`;
+        });
+    }
+    catch {
+        return [];
+    }
 }
 function getWebviewContent(context, panel) {
     const webview = panel.webview;
