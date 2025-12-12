@@ -22,7 +22,12 @@ export function activate(context: vscode.ExtensionContext) {
 
     panel.webview.html = getWebviewContent(context, panel);
 
-    const shell = createShell();
+    const cwd =
+      vscode.window.activeTextEditor?.document?.uri?.scheme === 'file'
+        ? path.dirname(vscode.window.activeTextEditor.document.uri.fsPath)
+        : vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+
+    const shell = createShell(cwd);
     if (!shell) {
       vscode.window.showErrorMessage('Failed to start PowerShell session');
       return;
@@ -75,7 +80,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(disposable);
 }
 
-function createShell(): ChildProcessWithoutNullStreams | null {
+function createShell(cwd?: string): ChildProcessWithoutNullStreams | null {
   const candidates =
     process.platform === 'win32'
       ? ['powershell.exe', 'pwsh.exe', 'pwsh']
@@ -83,7 +88,7 @@ function createShell(): ChildProcessWithoutNullStreams | null {
 
   for (const cmd of candidates) {
     try {
-      return spawn(cmd, [], { stdio: 'pipe' });
+      return spawn(cmd, [], { stdio: 'pipe', cwd });
     } catch {
       continue;
     }

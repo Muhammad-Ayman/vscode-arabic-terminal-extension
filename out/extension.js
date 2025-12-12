@@ -50,7 +50,10 @@ function activate(context) {
             ],
         });
         panel.webview.html = getWebviewContent(context, panel);
-        const shell = createShell();
+        const cwd = vscode.window.activeTextEditor?.document?.uri?.scheme === 'file'
+            ? path.dirname(vscode.window.activeTextEditor.document.uri.fsPath)
+            : vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        const shell = createShell(cwd);
         if (!shell) {
             vscode.window.showErrorMessage('Failed to start PowerShell session');
             return;
@@ -91,13 +94,13 @@ function activate(context) {
     });
     context.subscriptions.push(disposable);
 }
-function createShell() {
+function createShell(cwd) {
     const candidates = process.platform === 'win32'
         ? ['powershell.exe', 'pwsh.exe', 'pwsh']
         : ['pwsh', 'powershell', 'bash', 'sh'];
     for (const cmd of candidates) {
         try {
-            return (0, child_process_1.spawn)(cmd, [], { stdio: 'pipe' });
+            return (0, child_process_1.spawn)(cmd, [], { stdio: 'pipe', cwd });
         }
         catch {
             continue;
