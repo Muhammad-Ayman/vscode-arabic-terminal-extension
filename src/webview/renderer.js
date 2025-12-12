@@ -371,6 +371,17 @@
     if (text) insertText(text);
   });
 
+  // Global Ctrl+C to send interrupt when nothing is selected
+  window.addEventListener('keydown', (e) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    if (e.key.toLowerCase() !== 'c') return;
+    const selection = window.getSelection();
+    const hasSelection = selection && !selection.isCollapsed;
+    if (hasSelection) return; // allow copy when user selected text
+    e.preventDefault();
+    interruptProcess();
+  });
+
   promptTextEl.addEventListener('mousedown', (e) => {
     e.preventDefault();
     focusPrompt();
