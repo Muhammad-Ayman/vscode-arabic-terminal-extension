@@ -165,15 +165,40 @@ function createShell(cwd) {
     const candidates = process.platform === 'win32'
         ? ['powershell.exe', 'pwsh.exe', 'pwsh']
         : ['pwsh', 'powershell', 'bash', 'sh'];
+    const venv = detectVirtualEnv(cwd);
+    const baseEnv = { ...process.env };
+    if (venv) {
+        baseEnv.VIRTUAL_ENV = venv.root;
+        const currentPath = process.env.PATH || process.env.Path || '';
+        baseEnv.PATH = `${venv.bin}${path.delimiter}${currentPath}`;
+        baseEnv.Path = baseEnv.PATH;
+    }
     for (const cmd of candidates) {
         try {
-            return (0, child_process_1.spawn)(cmd, [], { stdio: 'pipe', cwd });
+            return (0, child_process_1.spawn)(cmd, [], { stdio: 'pipe', cwd, env: baseEnv });
         }
         catch {
             continue;
         }
     }
     return undefined;
+}
+function detectVirtualEnv(cwd) {
+    const base = cwd || process.cwd();
+    const names = ['.venv', 'env', 'venv'];
+    for (const name of names) {
+        const root = path.join(base, name);
+        const scripts = process.platform === 'win32' ? 'Scripts' : 'bin';
+        const bin = path.join(root, scripts);
+        try {
+            if (fs.existsSync(bin) && fs.lstatSync(bin).isDirectory()) {
+                return { root, bin };
+            }
+        }
+        catch {
+        }
+    }
+    return null;
 }
 function resolvePath(target, cwd) {
     try {

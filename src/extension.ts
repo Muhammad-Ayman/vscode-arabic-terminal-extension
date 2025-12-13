@@ -149,14 +149,43 @@ function createShell(cwd?: string): ChildProcessWithoutNullStreams | undefined {
       ? ['powershell.exe', 'pwsh.exe', 'pwsh']
       : ['pwsh', 'powershell', 'bash', 'sh'];
 
+  const venv = detectVirtualEnv(cwd);
+  const baseEnv = { ...process.env };
+  if (venv) {
+    baseEnv.VIRTUAL_ENV = venv.root;
+    // Prepend Scripts/bin so python/pip resolve to the venv
+    const currentPath = process.env.PATH || process.env.Path || '';
+    baseEnv.PATH = `${venv.bin}${path.delimiter}${currentPath}`;
+    // On Windows some tools honor "Path" casing
+    baseEnv.Path = baseEnv.PATH;
+  }
+
   for (const cmd of candidates) {
     try {
-      return spawn(cmd, [], { stdio: 'pipe', cwd });
+      return spawn(cmd, [], { stdio: 'pipe', cwd, env: baseEnv });
     } catch {
       continue;
     }
   }
   return undefined;
+}
+
+function detectVirtualEnv(cwd?: string): { root: string; bin: string } | null {
+  const base = cwd || process.cwd();
+  const names = ['.venv', 'env', 'venv'];
+  for (const name of names) {
+    const root = path.join(base, name);
+    const scripts = process.platform === 'win32' ? 'Scripts' : 'bin';
+    const bin = path.join(root, scripts);
+    try {
+      if (fs.existsSync(bin) && fs.lstatSync(bin).isDirectory()) {
+        return { root, bin };
+      }
+    } catch {
+      // ignore and continue
+    }
+  }
+  return null;
 }
 
 function resolvePath(target: string, cwd?: string): string | null {
